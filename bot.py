@@ -19,7 +19,6 @@ from telegram.error import TelegramError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
-    ChatJoinRequestHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
@@ -52,7 +51,6 @@ MANDATORY_CHANNEL_URL = "https://t.me/nobitabanxunban"
 MANDATORY_CHANNEL_REF = os.getenv("MANDATORY_CHANNEL_REF", "@nobitabanxunban")
 
 REQUESTED_CHANNEL_URL = "https://t.me/+972zYAr5L1BjMmM1"
-REQUESTED_CHANNEL_ID = os.getenv("REQUESTED_CHANNEL_ID", "")
 
 JOIN_GROUP_URL = "https://t.me/chatgctest"
 JOIN_GROUP_REF = os.getenv("JOIN_GROUP_REF", "@chatgctest")
@@ -90,7 +88,6 @@ def is_owner(update: Update) -> bool:
 def load_db() -> dict[str, Any]:
     default_data: dict[str, Any] = {
         "users": {},
-        "join_requests": [],
         "tg_ban_cases": [],
         "support_tickets": [],
     }
@@ -104,7 +101,7 @@ def load_db() -> dict[str, Any]:
                     data.setdefault(k, v)
                 return data
         except (json.JSONDecodeError, OSError):
-            logger.exception("Failed to read database file; using fresh state.")
+            logger.exception("Failed to read database file; initializing fresh state.")
             return default_data
 
 
@@ -148,8 +145,8 @@ def has_active_premium(user_rec: dict[str, Any]) -> bool:
 def format_premium_status(user_rec: dict[str, Any]) -> str:
     if has_active_premium(user_rec):
         remaining_days = max(1, (int(user_rec["premium_until"]) - int(time.time())) // 86400)
-        return f"👑 <b>ACTIVE PREMIUM</b>  •  <code>{remaining_days} Days Left</code>"
-    return "🔹 <b>STANDARD ACCESS</b>  •  <code>10 Refs = 1 Month Free</code>"
+        return f"👑 <b>ACTIVE PREMIUM</b>  •  <code>{remaining_days} Days Remaining</code>"
+    return "🔹 <b>STANDARD ACCESS</b>  •  <code>10 Referrals = 1 Month Free</code>"
 
 
 # ---------------- KEEP-ALIVE WEB SERVER FOR RENDER ----------------
@@ -158,7 +155,7 @@ flask_app = Flask(__name__)
 
 @flask_app.route("/")
 def health_check():
-    return f"{BOT_NAME} ({BOT_USERNAME}) is live.", 200
+    return f"{BOT_NAME} ({BOT_USERNAME}) is operational.", 200
 
 
 def run_flask() -> None:
@@ -182,25 +179,14 @@ async def is_member_of(bot, chat_ref: str, user_id: int) -> bool:
         return False
 
 
-async def has_requested_or_joined(bot, user_id: int, db: dict[str, Any]) -> bool:
-    """Returns True as soon as user sends a join request (or is already a member)."""
-    if str(user_id) in {str(x) for x in db.get("join_requests", [])}:
-        return True
-    if REQUESTED_CHANNEL_ID:
-        return await is_member_of(bot, REQUESTED_CHANNEL_ID, user_id)
-    return False
-
-
-async def check_all_requirements(bot, user_id: int, db: dict[str, Any]) -> dict[str, bool]:
+async def check_all_requirements(bot, user_id: int) -> dict[str, bool]:
     channel_ok = await is_member_of(bot, MANDATORY_CHANNEL_REF, user_id)
     group_ok = await is_member_of(bot, JOIN_GROUP_REF, user_id)
-    requested_ok = await has_requested_or_joined(bot, user_id, db)
 
     return {
         "channel": channel_ok,
-        "requested": requested_ok,
         "group": group_ok,
-        "all_ok": channel_ok and requested_ok and group_ok,
+        "all_ok": channel_ok and group_ok,
     }
 
 
@@ -209,7 +195,7 @@ def build_gate_keyboard() -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton("📢 Mandatory Channel", url=MANDATORY_CHANNEL_URL),
-                InlineKeyboardButton("🔐 Request Channel", url=REQUESTED_CHANNEL_URL),
+                InlineKeyboardButton("🔐 Requested Channel", url=REQUESTED_CHANNEL_URL),
             ],
             [
                 InlineKeyboardButton("👥 Join Group", url=JOIN_GROUP_URL),
@@ -267,32 +253,6 @@ async def send_stylish_video_message(
         )
 
 
-# ---------------- JOIN REQUEST TRACKER ----------------
-async def track_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    req = update.chat_join_request
-    if not req:
-        return
-
-    db = load_db()
-    uid_str = str(req.from_user.id)
-    if uid_str not in db["join_requests"]:
-        db["join_requests"].append(uid_str)
-        save_db(db)
-
-    logger.info("Join request verified for user %s in chat %s", req.from_user.id, req.chat.id)
-    try:
-        await context.bot.send_message(
-            chat_id=req.from_user.id,
-            text=(
-                f"{make_header(BOT_NAME, 'JOIN REQUEST RECORDED')}"
-                f"{make_quote('Aapki channel join request verify ho chuki hai. Ab Verify button dabayein.')}"
-            ),
-            parse_mode=ParseMode.HTML,
-        )
-    except TelegramError:
-        pass
-
-
 # ---------------- COMMANDS & CALLBACKS ----------------
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.effective_user or not update.effective_chat:
@@ -324,11 +284,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                         await context.bot.send_message(
                             chat_id=int(referrer_id_str),
                             text=(
-                                f"{make_header('NEW REFERRAL ADDED', 'REWARD PROGRESS UPDATED')}"
-                                f"{make_quote('Ek naya member aapke invite link se jud gaya hai.')}"
+                                f"{make_header('NEW REFERRAL REGISTERED', 'REWARD MILESTONE TRACKER')}"
+                                f"{make_quote('A new member has joined using your personal referral link.')}"
                                 f"👤 <b>Member:</b> {user.full_name}\n\n"
                                 f"📈 <b>Total Referrals:</b> <code>{ref_user['referrals']}</code>\n\n"
-                                f"💎 <b>Plan:</b> {format_premium_status(ref_user)}"
+                                f"💎 <b>Membership:</b> {format_premium_status(ref_user)}"
                             ),
                             parse_mode=ParseMode.HTML,
                         )
@@ -336,20 +296,20 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                         pass
 
     save_db(db)
-    status = await check_all_requirements(context.bot, user.id, db)
+    status = await check_all_requirements(context.bot, user.id)
 
     if not status["all_ok"]:
         gate_caption = (
             f"{make_header(BOT_NAME, 'ACCESS VERIFICATION GATEWAY')}"
-            f"{make_quote('Precision, speed, aur structured control ke saath next-gen moderation suite.')}"
-            f"🤖 <b>Bot:</b> {bold_mono(BOT_USERNAME)}\n\n"
+            f"{make_quote('Precision, speed, and structured moderation tools engineered for modern communities.')}"
+            f"🤖 <b>Bot Handle:</b> {bold_mono(BOT_USERNAME)}\n\n"
             f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>\n\n"
-            f"<b>Required Access Steps:</b>\n\n"
-            f"{'✅' if status['channel'] else '❌'} <b>Mandatory Channel</b> — Join channel\n\n"
-            f"{'✅' if status['requested'] else '⏳'} <b>Requested Channel</b> — Sirf join request bhejein\n\n"
-            f"{'✅' if status['group'] else '❌'} <b>Join Group</b> — Join community group\n\n"
+            f"<b>Access Checklist:</b>\n\n"
+            f"{'✅' if status['channel'] else '❌'} <b>Mandatory Channel</b> — Join required channel\n\n"
+            f"🔹 <b>Requested Channel</b> — Optional quick access link\n\n"
+            f"{'✅' if status['group'] else '❌'} <b>Join Group</b> — Join official community group\n\n"
             f"🤖 <b>Partner Bot:</b> <a href=\"{PARTNER_BOT_URL}\">Nobita BanBot</a>\n\n"
-            f"<i>Sabhi steps complete karke</i> <b>Verify & Unlock Access</b> <i>dabayein.</i>"
+            f"<i>Complete the required steps above and tap</i> <b>Verify & Unlock Access</b><i>.</i>"
         )
         await send_stylish_video_message(
             context.bot,
@@ -361,16 +321,16 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     welcome_caption = (
         f"{make_header(BOT_NAME, 'ELITE MODERATION & REFERRAL SUITE')}"
-        f"{make_quote('Built for high-impact workflows, 10-referral free premium, aur direct owner support.')}"
+        f"{make_quote('Built for high-efficiency operations, 10-referral free premium, and direct owner support.')}"
         f"👋 <b>Welcome,</b> <b>{user.full_name}</b>\n\n"
-        f"🤖 <b>Handle:</b> {bold_mono(BOT_USERNAME)}\n\n"
+        f"🤖 <b>Bot Handle:</b> {bold_mono(BOT_USERNAME)}\n\n"
         f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>\n\n"
         f"{format_premium_status(user_rec)}\n\n"
         f"<b>Core Modules:</b>\n\n"
-        f"⚔️ <b>TG BAN</b> — Submit & track moderation cases\n\n"
+        f"⚔️ <b>TG BAN</b> — Submit and track moderation action tickets\n\n"
         f"💎 <b>Referral & Premium</b> — <code>10 Referrals = 1 Month Free</code>\n\n"
-        f"🎧 <b>Support</b> — Direct ticket & owner assistance\n\n"
-        f"🤖 <b>Partner Bot</b> — <a href=\"{PARTNER_BOT_URL}\">Start Nobita BanBot</a>"
+        f"🎧 <b>Support</b> — Direct ticket and owner assistance\n\n"
+        f"🤖 <b>Partner Bot</b> — <a href=\"{PARTNER_BOT_URL}\">Launch Nobita BanBot</a>"
     )
     await send_stylish_video_message(
         context.bot,
@@ -393,7 +353,7 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     user_rec["awaiting_mode"] = None
     save_db(db)
     await update.message.reply_text(
-        f"{make_quote('Current action cancel kar diya gaya hai. Main menu neeche diya gaya hai.')}",
+        f"{make_quote('Current operation has been cancelled. Use the main menu below.')}",
         parse_mode=ParseMode.HTML,
         reply_markup=build_main_menu_keyboard(),
     )
@@ -412,19 +372,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     data = query.data or ""
 
     if data == "verify_join":
-        status = await check_all_requirements(context.bot, user.id, db)
+        status = await check_all_requirements(context.bot, user.id)
         if not status["all_ok"]:
             missing = []
             if not status["channel"]:
                 missing.append(f"• <b>Mandatory Channel:</b> {MANDATORY_CHANNEL_URL}")
-            if not status["requested"]:
-                missing.append(f"• <b>Requested Channel (Sirf Request Bhejein):</b> {REQUESTED_CHANNEL_URL}")
             if not status["group"]:
                 missing.append(f"• <b>Join Group:</b> {JOIN_GROUP_URL}")
 
             await query.message.reply_text(
-                f"{make_header('VERIFICATION PENDING', 'COMPLETE REMAINING STEPS')}"
-                f"{make_quote('Requested channel mein sirf join request bhejne par bhi verify ho jayega.')}"
+                f"{make_header('VERIFICATION REQUIRED', 'ACCESS STILL LOCKED')}"
+                f"{make_quote('Please join the required channel and group to unlock all bot features.')}"
                 + "\n\n".join(missing),
                 parse_mode=ParseMode.HTML,
                 reply_markup=build_gate_keyboard(),
@@ -435,9 +393,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             context.bot,
             chat_id=chat_id,
             caption=(
-                f"{make_header(BOT_NAME, 'ACCESS UNLOCKED & VERIFIED')}"
-                f"{make_quote('Aapki verification safaltapoorvak poori ho gayi hai.')}"
-                f"✅ <b>Verified User:</b> <b>{user.full_name}</b>\n\n"
+                f"{make_header(BOT_NAME, 'ACCESS VERIFIED & UNLOCKED')}"
+                f"{make_quote('Your membership has been verified. Welcome to the premium control panel.')}"
+                f"✅ <b>Verified Account:</b> <b>{user.full_name}</b>\n\n"
                 f"{format_premium_status(user_rec)}"
             ),
             reply_markup=build_main_menu_keyboard(),
@@ -452,11 +410,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             chat_id=chat_id,
             caption=(
                 f"{make_header('TG BAN MODULE', 'MODERATION & REPORT CASE')}"
-                f"{make_quote('Clear details aur reason ke saath case submit karein.')}"
+                f"{make_quote('Submit clear target details and a concise reason for moderation review.')}"
                 f"{format_premium_status(user_rec)}\n\n"
-                f"<b>Format:</b>\n"
-                f"<code>@target_username | Reason</code>\n\n"
-                f"<i>Cancel karne ke liye /cancel bhejein.</i>"
+                f"<b>Required Format:</b>\n"
+                f"<code>@target_username | Reason for action</code>\n\n"
+                f"<i>Send /cancel at any time to abort.</i>"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]]
@@ -479,11 +437,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             chat_id=chat_id,
             caption=(
                 f"{make_header('REFERRAL & PREMIUM VAULT', '10 REFERRALS = 1 MONTH FREE')}"
-                f"{make_quote('10 referrals complete karke 1 month free premium payein ya direct owner se contact karein.')}"
-                f"🔗 <b>Your Invite Link:</b>\n<code>{ref_link}</code>\n\n"
+                f"{make_quote('Complete 10 referrals for 1 month of free premium access, or contact the owner directly.')}"
+                f"🔗 <b>Personal Invite Link:</b>\n<code>{ref_link}</code>\n\n"
                 f"📈 <b>Total Referrals:</b> <code>{refs}</code>\n\n"
-                f"🎯 <b>Remaining For Next Reward:</b> <code>{rem}</code>\n\n"
-                f"💎 <b>Status:</b> {format_premium_status(user_rec)}\n\n"
+                f"🎯 <b>Referrals Needed For Reward:</b> <code>{rem}</code>\n\n"
+                f"💎 <b>Current Status:</b> {format_premium_status(user_rec)}\n\n"
                 f"👑 <b>Direct Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>"
             ),
             reply_markup=InlineKeyboardMarkup(
@@ -502,11 +460,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             context.bot,
             chat_id=chat_id,
             caption=(
-                f"{make_header('SUPPORT DESK', 'DIRECT OWNER & TICKET HELP')}"
-                f"{make_quote('Kisi bhi query ya premium access ke liye apna message bhejein ya owner se sampark karein.')}"
+                f"{make_header('SUPPORT DESK', 'DIRECT OWNER & TICKET ASSISTANCE')}"
+                f"{make_quote('Send your inquiry directly here or reach out to the owner for priority assistance.')}"
                 f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>\n\n"
                 f"🤖 <b>Partner Bot:</b> <a href=\"{PARTNER_BOT_URL}\">Nobita BanBot</a>\n\n"
-                f"<i>Apna support message yahan type karein.</i>"
+                f"<i>Type your support message below to create a ticket.</i>"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -524,12 +482,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             context.bot,
             chat_id=chat_id,
             caption=(
-                f"{make_header('ACCOUNT TELEMETRY', 'LIVE MEMBER STATUS')}"
-                f"{make_quote('Aapke account, referrals, aur premium plan ki live summary.')}"
-                f"👤 <b>Name:</b> <b>{user.full_name}</b>\n\n"
+                f"{make_header('ACCOUNT TELEMETRY', 'LIVE MEMBER OVERVIEW')}"
+                f"{make_quote('Real-time summary of your profile, referrals, and premium subscription.')}"
+                f"👤 <b>Full Name:</b> <b>{user.full_name}</b>\n\n"
                 f"🆔 <b>User ID:</b> <code>{user.id}</code>\n\n"
-                f"📈 <b>Referrals:</b> <code>{user_rec.get('referrals', 0)}</code>\n\n"
-                f"💎 <b>Plan:</b> {format_premium_status(user_rec)}"
+                f"📈 <b>Total Referrals:</b> <code>{user_rec.get('referrals', 0)}</code>\n\n"
+                f"💎 <b>Subscription:</b> {format_premium_status(user_rec)}"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]]
@@ -545,8 +503,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             chat_id=chat_id,
             caption=(
                 f"{make_header(BOT_NAME, 'MAIN CONTROL PANEL')}"
-                f"{make_quote('Select any module below to continue.')}"
-                f"🤖 <b>Bot:</b> {bold_mono(BOT_USERNAME)}\n\n"
+                f"{make_quote('Choose an option below to access features and account tools.')}"
+                f"🤖 <b>Bot Handle:</b> {bold_mono(BOT_USERNAME)}\n\n"
                 f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>\n\n"
                 f"{format_premium_status(user_rec)}"
             ),
@@ -578,11 +536,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         save_db(db)
 
         await update.message.reply_text(
-            f"{make_header('TG BAN CASE LOGGED', 'MODERATION QUEUE')}"
-            f"{make_quote('Aapka case record kar liya gaya hai aur owner ko bhej diya gaya hai.')}"
+            f"{make_header('TG BAN TICKET LOGGED', 'MODERATION QUEUE')}"
+            f"{make_quote('Your moderation ticket has been recorded and forwarded to the owner.')}"
             f"🎫 <b>Case ID:</b> <code>{case_id}</code>\n\n"
             f"📝 <b>Details:</b> <code>{text}</code>\n\n"
-            f"📌 <b>Status:</b> <b>Submitted</b>",
+            f"📌 <b>Status:</b> <b>Queued</b>",
             parse_mode=ParseMode.HTML,
             reply_markup=build_main_menu_keyboard(),
         )
@@ -590,8 +548,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await context.bot.send_message(
                 chat_id=OWNER_ID,
                 text=(
-                    f"{make_header('NEW TG BAN CASE', case_id)}"
-                    f"👤 <b>From:</b> <b>{user.full_name}</b> (<code>{user.id}</code>)\n\n"
+                    f"{make_header('NEW TG BAN TICKET', case_id)}"
+                    f"👤 <b>Submitted By:</b> <b>{user.full_name}</b> (<code>{user.id}</code>)\n\n"
                     f"📝 <b>Details:</b> <code>{text}</code>"
                 ),
                 parse_mode=ParseMode.HTML,
@@ -614,8 +572,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         save_db(db)
 
         await update.message.reply_text(
-            f"{make_header('SUPPORT TICKET SENT', 'OWNER NOTIFIED')}"
-            f"{make_quote('Aapka message owner tak pahuncha diya gaya hai.')}"
+            f"{make_header('SUPPORT TICKET SUBMITTED', 'OWNER NOTIFIED')}"
+            f"{make_quote('Your message has been delivered to the support team.')}"
             f"🎫 <b>Ticket ID:</b> <code>{ticket_id}</code>\n\n"
             f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>",
             parse_mode=ParseMode.HTML,
@@ -625,8 +583,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await context.bot.send_message(
                 chat_id=OWNER_ID,
                 text=(
-                    f"{make_header('SUPPORT MESSAGE', ticket_id)}"
-                    f"👤 <b>From:</b> <b>{user.full_name}</b> (<code>{user.id}</code>)\n\n"
+                    f"{make_header('NEW SUPPORT TICKET', ticket_id)}"
+                    f"👤 <b>User:</b> <b>{user.full_name}</b> (<code>{user.id}</code>)\n\n"
                     f"{make_quote(text)}"
                 ),
                 parse_mode=ParseMode.HTML,
@@ -636,8 +594,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return
 
     await update.message.reply_text(
-        f"{make_header(BOT_NAME, 'QUICK NAVIGATION')}"
-        f"{make_quote('Main menu kholne ke liye /start bhejein ya neeche buttons ka use karein.')}",
+        f"{make_header(BOT_NAME, 'NAVIGATION PROMPT')}"
+        f"{make_quote('Use /start or select a button below to open the main control panel.')}",
         parse_mode=ParseMode.HTML,
         reply_markup=build_main_menu_keyboard(),
     )
@@ -658,7 +616,7 @@ async def cmd_add_premium(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     target_id = context.args[0].strip()
     days = int(context.args[1]) if len(context.args) > 1 and context.args[1].isdigit() else 30
     if days <= 0:
-        await update.message.reply_text("Days must be greater than 0.")
+        await update.message.reply_text("Duration must be greater than 0 days.")
         return
 
     db = load_db()
@@ -680,17 +638,17 @@ async def cmd_add_premium(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     save_db(db)
 
     await update.message.reply_text(
-        f"{make_header('PREMIUM GRANTED', 'OWNER ACTION')}"
+        f"{make_header('PREMIUM GRANTED', 'OWNER ADMINISTRATION')}"
         f"🆔 <b>User ID:</b> <code>{target_id}</code>\n\n"
-        f"⏳ <b>Duration:</b> <b>{days} Days</b>",
+        f"⏳ <b>Duration Added:</b> <b>{days} Days</b>",
         parse_mode=ParseMode.HTML,
     )
     try:
         await context.bot.send_message(
             chat_id=int(target_id),
             text=(
-                f"{make_header('PREMIUM ACTIVATED', 'VIP ACCESS UNLOCKED')}"
-                f"{make_quote(f'Owner {OWNER_USERNAME} ne aapko {days} din ka Premium access diya hai.')}"
+                f"{make_header('PREMIUM ACTIVATED', 'VIP ACCESS GRANTED')}"
+                f"{make_quote(f'Owner {OWNER_USERNAME} has granted you {days} days of Premium access.')}"
             ),
             parse_mode=ParseMode.HTML,
         )
@@ -714,7 +672,7 @@ async def cmd_remove_premium(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if target_id not in db["users"]:
         await update.message.reply_text(
-            f"⚠️ User <code>{target_id}</code> database mein nahi mila.",
+            f"⚠️ User <code>{target_id}</code> was not found in the database.",
             parse_mode=ParseMode.HTML,
         )
         return
@@ -723,16 +681,16 @@ async def cmd_remove_premium(update: Update, context: ContextTypes.DEFAULT_TYPE)
     save_db(db)
 
     await update.message.reply_text(
-        f"{make_header('PREMIUM REMOVED', 'OWNER ACTION')}"
-        f"🆔 <b>User ID:</b> <code>{target_id}</code> ka premium access hata diya gaya hai.",
+        f"{make_header('PREMIUM REVOKED', 'OWNER ADMINISTRATION')}"
+        f"🆔 <b>User ID:</b> <code>{target_id}</code> premium access has been removed.",
         parse_mode=ParseMode.HTML,
     )
     try:
         await context.bot.send_message(
             chat_id=int(target_id),
             text=(
-                f"{make_header('PREMIUM UPDATED', 'STANDARD PLAN')}"
-                f"{make_quote(f'Aapka premium access remove kar diya gaya hai. Contact: {OWNER_USERNAME}')}"
+                f"{make_header('PREMIUM UPDATED', 'STANDARD ACCESS')}"
+                f"{make_quote(f'Your premium access has been removed. Contact {OWNER_USERNAME} for assistance.')}"
             ),
             parse_mode=ParseMode.HTML,
         )
@@ -746,7 +704,7 @@ async def cmd_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     if not context.args:
         await update.message.reply_text(
-            "Usage: <code>/broadcast &lt;your message&gt;</code>",
+            "Usage: <code>/broadcast &lt;message&gt;</code>",
             parse_mode=ParseMode.HTML,
         )
         return
@@ -773,7 +731,7 @@ async def cmd_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             failed += 1
 
     await update.message.reply_text(
-        f"{make_header('BROADCAST COMPLETE', 'DELIVERY REPORT')}"
+        f"{make_header('BROADCAST COMPLETE', 'DELIVERY SUMMARY')}"
         f"✅ <b>Delivered:</b> <code>{sent}</code>\n\n"
         f"❌ <b>Failed:</b> <code>{failed}</code>",
         parse_mode=ParseMode.HTML,
@@ -791,7 +749,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     total_tickets = len(db["support_tickets"])
 
     await update.message.reply_text(
-        f"{make_header(BOT_NAME, 'LIVE SYSTEM STATS')}"
+        f"{make_header(BOT_NAME, 'SYSTEM TELEMETRY')}"
         f"👥 <b>Total Users:</b> <code>{total_users}</code>\n\n"
         f"👑 <b>Active Premium:</b> <code>{active_prem}</code>\n\n"
         f"⚔️ <b>TG Ban Cases:</b> <code>{total_cases}</code>\n\n"
@@ -814,7 +772,6 @@ def main() -> None:
     app.add_handler(CommandHandler("removepremium", cmd_remove_premium))
     app.add_handler(CommandHandler("broadcast", cmd_broadcast))
     app.add_handler(CommandHandler("stats", cmd_stats))
-    app.add_handler(ChatJoinRequestHandler(track_join_request))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input))
 
