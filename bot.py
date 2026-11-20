@@ -312,6 +312,101 @@ async def send_stylish_video_message(
         )
 
 
+async def run_tg_ban_animation(
+    bot,
+    chat_id: int,
+    case_id: str,
+    ban_type_title: str,
+    target: str,
+    user_full_name: str,
+    user_id: int,
+) -> None:
+    """Phased live progress animation for Group Ban, Channel Ban, and TG ID Ban."""
+    stages = [
+        (
+            8,
+            "<code>[████░░░░░░░░░░░░░░░░] 20%</code>",
+            f"Resolving {ban_type_title.lower()} target metadata and verifying queue slot...",
+            "⏳ <b>Estimated Time:</b> <code>24s remaining</code>",
+            f"🟡 <b>{to_revue_italic('Stage 1/4')}:</b> Target Lookup & Queue Lock",
+        ),
+        (
+            8,
+            "<code>[█████████░░░░░░░░░░░] 48%</code>",
+            "Compiling structured moderation packet and routing through control nodes...",
+            "⏳ <b>Estimated Time:</b> <code>16s remaining</code>",
+            f"🟠 <b>{to_revue_italic('Stage 2/4')}:</b> Packet Routing & Node Sync",
+        ),
+        (
+            8,
+            "<code>[███████████████░░░░░] 78%</code>",
+            "Executing priority moderation action and verifying ticket receipt...",
+            "⏳ <b>Estimated Time:</b> <code>8s remaining</code>",
+            f"🔵 <b>{to_revue_italic('Stage 3/4')}:</b> Action Execution & Verification",
+        ),
+        (
+            8,
+            "<code>[████████████████████] 100%</code>",
+            "Moderation case finalized, logged, and forwarded to the owner.",
+            "✅ <b>Completed:</b> <code>32s Total Cycle</code>",
+            f"🟢 <b>{to_revue_italic('Stage 4/4')}:</b> Case Logged & Finalized",
+        ),
+    ]
+
+    status_msg = await bot.send_message(
+        chat_id=chat_id,
+        text=(
+            f"{make_header(f'{ban_type_title} ENGINE', 'LIVE EXECUTION')}"
+            f"{make_quote(f'Initializing {ban_type_title.lower()} sequence for submitted target.')}"
+            f"{format_user_identity(user_id, user_full_name)}\n\n"
+            f"🎫 <b>Case ID:</b> <code>{case_id}</code>\n\n"
+            f"⚔️ <b>Mode:</b> <b><i>{to_revue_italic(ban_type_title)}</i></b>\n\n"
+            f"🎯 <b>Target:</b> <code>{target}</code>\n\n"
+            f"<code>[██░░░░░░░░░░░░░░░░░░] 8%</code>\n\n"
+            f"<i>{to_revue_italic('Initializing ban engine...')}</i>"
+        ),
+        parse_mode=ParseMode.HTML,
+    )
+
+    for idx, (delay_sec, bar, step_quote, time_line, stage_label) in enumerate(stages):
+        await asyncio.sleep(delay_sec)
+        is_final = idx == len(stages) - 1
+        body = (
+            f"{make_header(f'{ban_type_title} ENGINE', 'EXECUTION COMPLETE' if is_final else 'LIVE TELEMETRY')}"
+            f"{make_quote(step_quote)}"
+            f"{format_user_identity(user_id, user_full_name)}\n\n"
+            f"🎫 <b>Case ID:</b> <code>{case_id}</code>\n\n"
+            f"⚔️ <b>Mode:</b> <b><i>{to_revue_italic(ban_type_title)}</i></b>\n\n"
+            f"🎯 <b>Target:</b> <code>{target}</code>\n\n"
+            f"{stage_label}\n\n"
+            f"{bar}\n\n"
+            f"{time_line}\n\n"
+            f"📌 <b>Status:</b> <b><i>{to_revue_italic('Logged & Queued' if is_final else 'Processing')}</i></b>"
+        )
+        try:
+            await status_msg.edit_text(
+                text=body,
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_main_menu_keyboard() if is_final else None,
+            )
+        except TelegramError:
+            pass
+
+    try:
+        await bot.send_message(
+            chat_id=OWNER_ID,
+            text=(
+                f"{make_header(f'PREMIUM {ban_type_title}', case_id)}"
+                f"{format_user_identity(user_id, user_full_name)}\n\n"
+                f"⚔️ <b>Mode:</b> <b>{ban_type_title}</b>\n\n"
+                f"🎯 <b>Target:</b> <code>{target}</code>"
+            ),
+            parse_mode=ParseMode.HTML,
+        )
+    except TelegramError:
+        pass
+
+
 async def run_mass_report_animation(
     bot,
     chat_id: int,
@@ -372,6 +467,7 @@ async def run_mass_report_animation(
         body = (
             f"{make_header('MASS REPORT ENGINE', 'EXECUTION COMPLETE' if is_final else 'LIVE TELEMETRY')}"
             f"{make_quote(step_quote)}"
+            f"{format_user_identity(user_id, user_full_name)}\n\n"
             f"🎫 <b>Job ID:</b> <code>{job_id}</code>\n\n"
             f"🎯 <b>Target:</b> <code>{target}</code>\n\n"
             f"{stage_label}\n\n"
@@ -870,29 +966,17 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         user_rec["awaiting_mode"] = None
         save_db(db)
 
-        await update.message.reply_text(
-            f"{make_header(f'{ban_type_title} LOGGED', 'MODERATION QUEUE')}"
-            f"{make_quote('Your premium moderation target has been recorded and forwarded.')}"
-            f"{format_user_identity(user.id, user.full_name)}\n\n"
-            f"🎫 <b>Case ID:</b> <code>{case_id}</code>\n\n"
-            f"⚔️ <b>Mode:</b> <b><i>{to_revue_italic(ban_type_title)}</i></b>\n\n"
-            f"🎯 <b>Target:</b> <code>{text}</code>\n\n"
-            f"📌 <b>Status:</b> <b><i>{to_revue_italic('Queued')}</i></b>",
-            parse_mode=ParseMode.HTML,
-            reply_markup=build_main_menu_keyboard(),
-        )
-        try:
-            await context.bot.send_message(
-                chat_id=OWNER_ID,
-                text=(
-                    f"{make_header(f'PREMIUM {ban_type_title}', case_id)}"
-                    f"{format_user_identity(user.id, user.full_name)}\n\n"
-                    f"🎯 <b>Target:</b> <code>{text}</code>"
-                ),
-                parse_mode=ParseMode.HTML,
+        asyncio.create_task(
+            run_tg_ban_animation(
+                bot=context.bot,
+                chat_id=chat_id,
+                case_id=case_id,
+                ban_type_title=ban_type_title,
+                target=text,
+                user_full_name=user.full_name,
+                user_id=user.id,
             )
-        except TelegramError:
-            pass
+        )
         return
 
     if mode == "support":
