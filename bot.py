@@ -68,21 +68,44 @@ DATA_FILE = Path(os.getenv("DATA_FILE", "bot_data.json"))
 DB_LOCK = threading.Lock()
 
 
-# ---------------- STYLED TYPOGRAPHY & QUOTES ----------------
+# ---------------- STYLISH FONTS, ITALIC & QUOTES ----------------
+_ITALIC_MAP = str.maketrans(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+    "𝐴𝐵𝐶𝐷𝐸𝐹𝐺𝐻𝐼𝐽𝐾𝐿𝑀𝑁𝑂𝑃𝑄𝑅𝑆𝑇𝑈𝑉𝑊𝑋𝑌𝑍𝑎𝑏𝑐𝑑𝑒𝑓𝑔ℎ𝑖𝑗𝑘𝑙𝑚𝑛𝑜𝑝𝑞𝑟𝑠𝑡𝑢𝑣𝑤𝑥𝑦𝑧",
+)
+
+_SANS_BOLD_MAP = str.maketrans(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵",
+)
+
+
+def to_revue_italic(text: str) -> str:
+    return text.translate(_ITALIC_MAP)
+
+
+def to_stylish_bold(text: str) -> str:
+    return text.translate(_SANS_BOLD_MAP)
+
+
 def bold_mono(text: str) -> str:
     return f"<b><code>{text}</code></b>"
 
 
 def make_header(title: str, subtitle: str) -> str:
     return (
-        f"⚡ <b>{title}</b> ⚡\n"
-        f"<i>✦ {subtitle} ✦</i>\n\n"
+        f"⚡ <b>{to_stylish_bold(title)}</b> ⚡\n"
+        f"<i>✦ {to_revue_italic(subtitle)} ✦</i>\n\n"
         f"<code>━━━━━━━━━━━━━━━━━━━━━━</code>\n"
     )
 
 
 def make_quote(text: str) -> str:
-    return f"<blockquote>“{text}”</blockquote>\n"
+    return f"<blockquote><i>“{to_revue_italic(text)}”</i></blockquote>\n"
+
+
+def format_user_identity(user_id: int, full_name: str) -> str:
+    return f"👤 <b>{to_revue_italic(full_name)}</b>  •  🆔 <code>{user_id}</code>"
 
 
 def is_owner(update: Update) -> bool:
@@ -151,8 +174,8 @@ def has_active_premium(user_rec: dict[str, Any]) -> bool:
 def format_premium_status(user_rec: dict[str, Any]) -> str:
     if has_active_premium(user_rec):
         remaining_days = max(1, (int(user_rec["premium_until"]) - int(time.time())) // 86400)
-        return f"👑 <b>ACTIVE PREMIUM</b>  •  <code>{remaining_days} Days Remaining</code>"
-    return "🔹 <b>STANDARD ACCESS</b>  •  <code>10 Referrals = 1 Month Free</code>"
+        return f"👑 <b>{to_revue_italic('Active Premium')}</b>  •  <code>{remaining_days} Days Left</code>"
+    return f"🔹 <b>{to_revue_italic('Standard Access')}</b>  •  <code>10 Refs = 1M Free</code>"
 
 
 # ---------------- KEEP-ALIVE WEB SERVER FOR RENDER ----------------
@@ -302,30 +325,30 @@ async def run_mass_report_animation(
         (
             15,
             "<code>[███░░░░░░░░░░░░░░░░░] 15%</code>",
-            "Validating target link & initializing multi-node report queue...",
+            "Validating target link and initializing multi-node report queue...",
             "⏳ <b>Estimated Time:</b> <code>45s remaining</code>",
-            "🟡 <b>Stage 1/4:</b> Target Handshake & Queue Sync",
+            f"🟡 <b>{to_revue_italic('Stage 1/4')}:</b> Target Handshake & Queue Sync",
         ),
         (
             15,
             "<code>[████████░░░░░░░░░░░░] 42%</code>",
-            "Dispatching Wave #1 structured abuse & spam report packets...",
+            "Dispatching Wave #1 structured abuse and spam report packets...",
             "⏳ <b>Estimated Time:</b> <code>30s remaining</code>",
-            "🟠 <b>Stage 2/4:</b> Wave #1 Dispatch Active",
+            f"🟠 <b>{to_revue_italic('Stage 2/4')}:</b> Wave #1 Dispatch Active",
         ),
         (
             15,
             "<code>[██████████████░░░░░░] 74%</code>",
-            "Rotating relay nodes & executing Wave #2 verification batch...",
+            "Rotating relay nodes and executing Wave #2 verification batch...",
             "⏳ <b>Estimated Time:</b> <code>15s remaining</code>",
-            "🔵 <b>Stage 3/4:</b> Wave #2 Relay & Telemetry Check",
+            f"🔵 <b>{to_revue_italic('Stage 3/4')}:</b> Wave #2 Relay & Telemetry Check",
         ),
         (
             15,
             "<code>[████████████████████] 100%</code>",
             "All report batches dispatched and logged under priority ticket.",
             "✅ <b>Duration:</b> <code>60s (1m 00s) Completed</code>",
-            "🟢 <b>Stage 4/4:</b> Dispatch Finalized",
+            f"🟢 <b>{to_revue_italic('Stage 4/4')}:</b> Dispatch Finalized",
         ),
     ]
 
@@ -334,10 +357,11 @@ async def run_mass_report_animation(
         text=(
             f"{make_header('MASS REPORT ENGINE', 'REAL-TIME EXECUTION')}"
             f"{make_quote('Initializing 60-second high-priority mass report sequence.')}"
+            f"{format_user_identity(user_id, user_full_name)}\n\n"
             f"🎫 <b>Job ID:</b> <code>{job_id}</code>\n\n"
             f"🎯 <b>Target:</b> <code>{target}</code>\n\n"
             f"<code>[█░░░░░░░░░░░░░░░░░░░] 5%</code>\n\n"
-            f"<i>Booting report dispatcher...</i>"
+            f"<i>{to_revue_italic('Booting report dispatcher...')}</i>"
         ),
         parse_mode=ParseMode.HTML,
     )
@@ -353,7 +377,7 @@ async def run_mass_report_animation(
             f"{stage_label}\n\n"
             f"{bar}\n\n"
             f"{time_line}\n\n"
-            f"📌 <b>Status:</b> <b>{'Dispatched & Logged' if is_final else 'Running'}</b>"
+            f"📌 <b>Status:</b> <b><i>{to_revue_italic('Dispatched & Logged' if is_final else 'Running')}</i></b>"
         )
         try:
             await status_msg.edit_text(
@@ -369,7 +393,7 @@ async def run_mass_report_animation(
             chat_id=OWNER_ID,
             text=(
                 f"{make_header('MASS REPORT COMPLETED', job_id)}"
-                f"👤 <b>User:</b> <b>{user_full_name}</b> (<code>{user_id}</code>)\n\n"
+                f"{format_user_identity(user_id, user_full_name)}\n\n"
                 f"🎯 <b>Target:</b> <code>{target}</code>\n\n"
                 f"⏱️ <b>Cycle:</b> <code>60s (1 Minute)</code>"
             ),
@@ -412,7 +436,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                             text=(
                                 f"{make_header('NEW REFERRAL REGISTERED', 'REWARD MILESTONE TRACKER')}"
                                 f"{make_quote('A new member has joined using your personal referral link.')}"
-                                f"👤 <b>Member:</b> {user.full_name}\n\n"
+                                f"{format_user_identity(user.id, user.full_name)}\n\n"
                                 f"📈 <b>Total Referrals:</b> <code>{ref_user['referrals']}</code>\n\n"
                                 f"💎 <b>Membership:</b> {format_premium_status(ref_user)}"
                             ),
@@ -426,16 +450,16 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if not status["all_ok"]:
         gate_caption = (
-            f"{make_header(BOT_NAME, 'ACCESS VERIFICATION GATEWAY')}"
-            f"{make_quote('Precision, speed, and structured moderation tools engineered for modern communities.')}"
-            f"🤖 <b>Bot Handle:</b> {bold_mono(BOT_USERNAME)}\n\n"
-            f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>\n\n"
-            f"<b>Access Checklist:</b>\n\n"
-            f"{'✅' if status['channel'] else '❌'} <b>Mandatory Channel</b> — Join required channel\n\n"
-            f"🔹 <b>Requested Channel</b> — Optional quick access link\n\n"
-            f"🔹 <b>Join Group</b> — Optional quick access link\n\n"
-            f"🤖 <b>Partner Bot:</b> <a href=\"{PARTNER_BOT_URL}\">Nobita BanBot</a>\n\n"
-            f"<i>Complete the required steps above and tap</i> <b>Verify & Unlock Access</b><i>.</i>"
+            f"{make_header(BOT_NAME, 'VERIFICATION GATEWAY')}"
+            f"{make_quote('Unlock precision moderation, mass reporting, and referral rewards.')}"
+            f"{format_user_identity(user.id, user.full_name)}\n\n"
+            f"🤖 <b>{to_revue_italic('Bot Handle')}:</b> {bold_mono(BOT_USERNAME)}  •  👑 <b>{OWNER_USERNAME}</b>\n\n"
+            f"<b><i>{to_revue_italic('Access Requirements')}</i></b>\n\n"
+            f"{'✅' if status['channel'] else '❌'} <b>{to_revue_italic('Mandatory Channel')}</b>\n\n"
+            f"🔹 <b>{to_revue_italic('Requested Channel')}</b> <code>(Optional Link)</code>\n\n"
+            f"🔹 <b>{to_revue_italic('Join Group')}</b> <code>(Optional Link)</code>\n\n"
+            f"🤖 <b>{to_revue_italic('Partner Bot')}:</b> <a href=\"{PARTNER_BOT_URL}\">{to_revue_italic('Nobita BanBot')}</a>\n\n"
+            f"<i>{to_revue_italic('Complete the required channel step and tap Verify & Unlock Access.')}</i>"
         )
         await send_stylish_video_message(
             context.bot,
@@ -446,17 +470,16 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     welcome_caption = (
-        f"{make_header(BOT_NAME, 'ELITE MODERATION & REFERRAL SUITE')}"
-        f"{make_quote('Built for high-efficiency operations, 10-referral free premium, and direct owner support.')}"
-        f"👋 <b>Welcome,</b> <b>{user.full_name}</b>\n\n"
-        f"🤖 <b>Bot Handle:</b> {bold_mono(BOT_USERNAME)}\n\n"
-        f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>\n\n"
+        f"{make_header(BOT_NAME, 'ELITE CONTROL SUITE')}"
+        f"{make_quote('Crafted for refined control, 10-referral free premium, and priority support.')}"
+        f"{format_user_identity(user.id, user.full_name)}\n\n"
+        f"🤖 <b>{to_revue_italic('Bot')}:</b> {bold_mono(BOT_USERNAME)}  •  👑 <b>{OWNER_USERNAME}</b>\n\n"
         f"{format_premium_status(user_rec)}\n\n"
-        f"<b>Core Modules:</b>\n\n"
-        f"⚔️ <b>TG BAN</b> — Group, channel, and TG ID moderation suite\n\n"
-        f"🚨 <b>Mass Report</b> — 60s phased multi-wave report execution\n\n"
-        f"💎 <b>Referral & Premium</b> — <code>10 Referrals = 1 Month Free</code>\n\n"
-        f"🎧 <b>Support</b> — Direct ticket and owner assistance"
+        f"<b><i>{to_revue_italic('Suite Modules')}</i></b>\n\n"
+        f"⚔️ <b>{to_revue_italic('TG Ban')}</b> — Group, channel, and TG ID controls\n\n"
+        f"🚨 <b>{to_revue_italic('Mass Report')}</b> — 60s multi-wave report sequence\n\n"
+        f"💎 <b>{to_revue_italic('Referral & Premium')}</b> — <code>10 Referrals = 1M Free</code>\n\n"
+        f"🎧 <b>{to_revue_italic('Support')}</b> — Direct assistance & tickets"
     )
     await send_stylish_video_message(
         context.bot,
@@ -502,7 +525,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if not status["all_ok"]:
             missing = []
             if not status["channel"]:
-                missing.append(f"• <b>Mandatory Channel:</b> {MANDATORY_CHANNEL_URL}")
+                missing.append(f"• <b>{to_revue_italic('Mandatory Channel')}:</b> {MANDATORY_CHANNEL_URL}")
 
             await query.message.reply_text(
                 f"{make_header('VERIFICATION REQUIRED', 'ACCESS STILL LOCKED')}"
@@ -517,9 +540,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             context.bot,
             chat_id=chat_id,
             caption=(
-                f"{make_header(BOT_NAME, 'ACCESS VERIFIED & UNLOCKED')}"
-                f"{make_quote('Your membership has been verified. Welcome to the premium control panel.')}"
-                f"✅ <b>Verified Account:</b> <b>{user.full_name}</b>\n\n"
+                f"{make_header(BOT_NAME, 'ACCESS VERIFIED')}"
+                f"{make_quote('Your membership has been verified. Welcome to the control suite.')}"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
                 f"{format_premium_status(user_rec)}"
             ),
             reply_markup=build_main_menu_keyboard(),
@@ -534,9 +557,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             unlock_caption = (
                 f"{make_header('UNLOCK PREMIUM ACCESS', 'EXCLUSIVE MODERATION SUITE')}"
                 f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
-                f"🔹 <b>You have normal access.</b>\n\n"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"🔹 <b>{to_revue_italic('You have normal access.')}</b>\n\n"
                 f"💎 To unlock premium access, complete <code>10 referrals</code> or if you want direct access, DM the owner <b>{OWNER_USERNAME}</b>.\n\n"
-                f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>"
+                f"👑 <b>{to_revue_italic('Owner')}:</b> <b>{OWNER_USERNAME}</b>"
             )
             await send_stylish_video_message(
                 context.bot,
@@ -549,11 +573,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         premium_ban_caption = (
             f"{make_header('TG BAN CONTROL SUITE', 'SELECT TARGET OPERATION')}"
             f"{make_quote('Choose your target mode below to submit a moderation action.')}"
+            f"{format_user_identity(user.id, user.full_name)}\n\n"
             f"{format_premium_status(user_rec)}\n\n"
-            f"<b>Available Modes:</b>\n\n"
-            f"👥 <b>Group Ban</b> — Target a Telegram group link\n\n"
-            f"📢 <b>Channel Ban</b> — Target a Telegram channel link\n\n"
-            f"🎯 <b>TG ID Ban</b> — Target a user by @username"
+            f"<b><i>{to_revue_italic('Available Modes')}</i></b>\n\n"
+            f"👥 <b>{to_revue_italic('Group Ban')}</b> — Target a Telegram group link\n\n"
+            f"📢 <b>{to_revue_italic('Channel Ban')}</b> — Target a Telegram channel link\n\n"
+            f"🎯 <b>{to_revue_italic('TG ID Ban')}</b> — Target a user by @username"
         )
         await send_stylish_video_message(
             context.bot,
@@ -570,9 +595,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             unlock_caption = (
                 f"{make_header('UNLOCK PREMIUM ACCESS', 'MASS REPORT ENGINE')}"
                 f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
-                f"🔹 <b>You have normal access.</b>\n\n"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"🔹 <b>{to_revue_italic('You have normal access.')}</b>\n\n"
                 f"💎 To unlock premium access, complete <code>10 referrals</code> or if you want direct access, DM the owner <b>{OWNER_USERNAME}</b>.\n\n"
-                f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>"
+                f"👑 <b>{to_revue_italic('Owner')}:</b> <b>{OWNER_USERNAME}</b>"
             )
             await send_stylish_video_message(
                 context.bot,
@@ -590,11 +616,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             caption=(
                 f"{make_header('MASS REPORT SUITE', '60-SECOND EXECUTION ENGINE')}"
                 f"{make_quote('Send the target link or @username to launch a 1-minute phased mass report cycle.')}"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
                 f"{format_premium_status(user_rec)}\n\n"
-                f"<b>Send Link / Target Format:</b>\n"
+                f"<b>{to_revue_italic('Send Link / Target Format')}:</b>\n"
                 f"<code>https://t.me/+972zYAr5L1BjMmM1</code>\n\n"
-                f"⏱️ <b>Execution Cycle:</b> <code>60 Seconds (1 Minute)</code>\n\n"
-                f"<i>Send /cancel at any time to abort.</i>"
+                f"⏱️ <b>{to_revue_italic('Execution Cycle')}:</b> <code>60 Seconds (1 Minute)</code>\n\n"
+                f"<i>{to_revue_italic('Send /cancel at any time to abort.')}</i>"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]]
@@ -611,9 +638,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             caption=(
                 f"{make_header('GROUP BAN MODE', 'TARGET GROUP SUBMISSION')}"
                 f"{make_quote('Send the target group link in the required format below.')}"
-                f"<b>Send Link Format:</b>\n"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"<b>{to_revue_italic('Send Link Format')}:</b>\n"
                 f"<code>https://t.me/+972zYAr5L1BjMmM1</code>\n\n"
-                f"<i>Send /cancel at any time to abort.</i>"
+                f"<i>{to_revue_italic('Send /cancel at any time to abort.')}</i>"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -632,9 +660,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             caption=(
                 f"{make_header('CHANNEL BAN MODE', 'TARGET CHANNEL SUBMISSION')}"
                 f"{make_quote('Send the target channel link in the required format below.')}"
-                f"<b>Send Link Format:</b>\n"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"<b>{to_revue_italic('Send Link Format')}:</b>\n"
                 f"<code>https://t.me/+972zYAr5L1BjMmM1</code>\n\n"
-                f"<i>Send /cancel at any time to abort.</i>"
+                f"<i>{to_revue_italic('Send /cancel at any time to abort.')}</i>"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -653,9 +682,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             caption=(
                 f"{make_header('TG ID BAN MODE', 'TARGET ACCOUNT SUBMISSION')}"
                 f"{make_quote('Send the target username in the required format below.')}"
-                f"<b>Send Format:</b>\n"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"<b>{to_revue_italic('Send Format')}:</b>\n"
                 f"<code>@username</code>\n\n"
-                f"<i>Send /cancel at any time to abort.</i>"
+                f"<i>{to_revue_italic('Send /cancel at any time to abort.')}</i>"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -681,11 +711,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             caption=(
                 f"{make_header('REFERRAL & PREMIUM VAULT', '10 REFERRALS = 1 MONTH FREE')}"
                 f"{make_quote('Complete 10 referrals for 1 month of free premium access, or contact the owner directly.')}"
-                f"🔗 <b>Personal Invite Link:</b>\n<code>{ref_link}</code>\n\n"
-                f"📈 <b>Total Referrals:</b> <code>{refs}</code>\n\n"
-                f"🎯 <b>Referrals Needed For Reward:</b> <code>{rem}</code>\n\n"
-                f"💎 <b>Current Status:</b> {format_premium_status(user_rec)}\n\n"
-                f"👑 <b>Direct Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"🔗 <b>{to_revue_italic('Personal Invite Link')}:</b>\n<code>{ref_link}</code>\n\n"
+                f"📈 <b>{to_revue_italic('Total Referrals')}:</b> <code>{refs}</code>\n\n"
+                f"🎯 <b>{to_revue_italic('Referrals Needed')}:</b> <code>{rem}</code>\n\n"
+                f"💎 <b>{to_revue_italic('Status')}:</b> {format_premium_status(user_rec)}\n\n"
+                f"👑 <b>{to_revue_italic('Owner')}:</b> <b>{OWNER_USERNAME}</b>"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -705,9 +736,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             caption=(
                 f"{make_header('SUPPORT DESK', 'DIRECT OWNER & TICKET ASSISTANCE')}"
                 f"{make_quote('Send your inquiry directly here or reach out to the owner for priority assistance.')}"
-                f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>\n\n"
-                f"🤖 <b>Partner Bot:</b> <a href=\"{PARTNER_BOT_URL}\">Nobita BanBot</a>\n\n"
-                f"<i>Type your support message below to create a ticket.</i>"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"👑 <b>{to_revue_italic('Owner')}:</b> <b>{OWNER_USERNAME}</b>\n\n"
+                f"🤖 <b>{to_revue_italic('Partner Bot')}:</b> <a href=\"{PARTNER_BOT_URL}\">{to_revue_italic('Nobita BanBot')}</a>\n\n"
+                f"<i>{to_revue_italic('Type your support message below to create a ticket.')}</i>"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -727,10 +759,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             caption=(
                 f"{make_header('ACCOUNT TELEMETRY', 'LIVE MEMBER OVERVIEW')}"
                 f"{make_quote('Real-time summary of your profile, referrals, and premium subscription.')}"
-                f"👤 <b>Full Name:</b> <b>{user.full_name}</b>\n\n"
-                f"🆔 <b>User ID:</b> <code>{user.id}</code>\n\n"
-                f"📈 <b>Total Referrals:</b> <code>{user_rec.get('referrals', 0)}</code>\n\n"
-                f"💎 <b>Subscription:</b> {format_premium_status(user_rec)}"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"📈 <b>{to_revue_italic('Total Referrals')}:</b> <code>{user_rec.get('referrals', 0)}</code>\n\n"
+                f"💎 <b>{to_revue_italic('Subscription')}:</b> {format_premium_status(user_rec)}"
             ),
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]]
@@ -745,10 +776,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             context.bot,
             chat_id=chat_id,
             caption=(
-                f"{make_header(BOT_NAME, 'MAIN CONTROL PANEL')}"
-                f"{make_quote('Choose an option below to access features and account tools.')}"
-                f"🤖 <b>Bot Handle:</b> {bold_mono(BOT_USERNAME)}\n\n"
-                f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>\n\n"
+                f"{make_header(BOT_NAME, 'ELITE CONTROL SUITE')}"
+                f"{make_quote('Crafted for refined control, 10-referral free premium, and priority support.')}"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"🤖 <b>{to_revue_italic('Bot')}:</b> {bold_mono(BOT_USERNAME)}  •  👑 <b>{OWNER_USERNAME}</b>\n\n"
                 f"{format_premium_status(user_rec)}"
             ),
             reply_markup=build_main_menu_keyboard(),
@@ -773,7 +804,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await update.message.reply_text(
                 f"{make_header('UNLOCK PREMIUM ACCESS', 'PREMIUM REQUIRED')}"
                 f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
-                f"🔹 <b>You have normal access.</b>\n\n"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"🔹 <b>{to_revue_italic('You have normal access.')}</b>\n\n"
                 f"💎 Complete <code>10 referrals</code> or DM <b>{OWNER_USERNAME}</b> for direct access.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=build_unlock_premium_keyboard(),
@@ -811,7 +843,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await update.message.reply_text(
                 f"{make_header('UNLOCK PREMIUM ACCESS', 'PREMIUM REQUIRED')}"
                 f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
-                f"🔹 <b>You have normal access.</b>\n\n"
+                f"{format_user_identity(user.id, user.full_name)}\n\n"
+                f"🔹 <b>{to_revue_italic('You have normal access.')}</b>\n\n"
                 f"💎 Complete <code>10 referrals</code> or DM <b>{OWNER_USERNAME}</b> for direct access.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=build_unlock_premium_keyboard(),
@@ -839,11 +872,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
         await update.message.reply_text(
             f"{make_header(f'{ban_type_title} LOGGED', 'MODERATION QUEUE')}"
-            f"{make_quote('Your premium moderation target has been recorded and sent to the owner.')}"
+            f"{make_quote('Your premium moderation target has been recorded and forwarded.')}"
+            f"{format_user_identity(user.id, user.full_name)}\n\n"
             f"🎫 <b>Case ID:</b> <code>{case_id}</code>\n\n"
-            f"⚔️ <b>Mode:</b> <b>{ban_type_title}</b>\n\n"
+            f"⚔️ <b>Mode:</b> <b><i>{to_revue_italic(ban_type_title)}</i></b>\n\n"
             f"🎯 <b>Target:</b> <code>{text}</code>\n\n"
-            f"📌 <b>Status:</b> <b>Queued</b>",
+            f"📌 <b>Status:</b> <b><i>{to_revue_italic('Queued')}</i></b>",
             parse_mode=ParseMode.HTML,
             reply_markup=build_main_menu_keyboard(),
         )
@@ -852,7 +886,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 chat_id=OWNER_ID,
                 text=(
                     f"{make_header(f'PREMIUM {ban_type_title}', case_id)}"
-                    f"👤 <b>Submitted By:</b> <b>{user.full_name}</b> (<code>{user.id}</code>)\n\n"
+                    f"{format_user_identity(user.id, user.full_name)}\n\n"
                     f"🎯 <b>Target:</b> <code>{text}</code>"
                 ),
                 parse_mode=ParseMode.HTML,
@@ -877,6 +911,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text(
             f"{make_header('SUPPORT TICKET SUBMITTED', 'OWNER NOTIFIED')}"
             f"{make_quote('Your message has been delivered to the support team.')}"
+            f"{format_user_identity(user.id, user.full_name)}\n\n"
             f"🎫 <b>Ticket ID:</b> <code>{ticket_id}</code>\n\n"
             f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>",
             parse_mode=ParseMode.HTML,
@@ -887,7 +922,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 chat_id=OWNER_ID,
                 text=(
                     f"{make_header('NEW SUPPORT TICKET', ticket_id)}"
-                    f"👤 <b>User:</b> <b>{user.full_name}</b> (<code>{user.id}</code>)\n\n"
+                    f"{format_user_identity(user.id, user.full_name)}\n\n"
                     f"{make_quote(text)}"
                 ),
                 parse_mode=ParseMode.HTML,
@@ -898,7 +933,8 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     await update.message.reply_text(
         f"{make_header(BOT_NAME, 'NAVIGATION PROMPT')}"
-        f"{make_quote('Use /start or select a button below to open the main control panel.')}",
+        f"{make_quote('Use /start or select a button below to open the main control panel.')}"
+        f"{format_user_identity(user.id, user.full_name)}",
         parse_mode=ParseMode.HTML,
         reply_markup=build_main_menu_keyboard(),
     )
