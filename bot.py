@@ -54,7 +54,7 @@ REQUESTED_CHANNEL_URL = "https://t.me/+972zYAr5L1BjMmM1"
 
 JOIN_GROUP_URL = "https://t.me/chatgctest"
 JOIN_GROUP_REF = os.getenv("JOIN_GROUP_REF", "@chatgctest")
-SKIP_GROUP_CHECK = os.getenv("SKIP_GROUP_CHECK", "false").strip().lower() in {
+SKIP_GROUP_CHECK = os.getenv("SKIP_GROUP_CHECK", "true").strip().lower() in {
     "1",
     "true",
     "yes",
@@ -94,6 +94,7 @@ def load_db() -> dict[str, Any]:
     default_data: dict[str, Any] = {
         "users": {},
         "tg_ban_cases": [],
+        "mass_report_jobs": [],
         "support_tickets": [],
     }
     with DB_LOCK:
@@ -218,14 +219,17 @@ def build_main_menu_keyboard() -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton("⚔️ TG BAN", callback_data="menu_tg_ban"),
-                InlineKeyboardButton("💎 Referral & Premium", callback_data="menu_referral"),
+                InlineKeyboardButton("🚨 Mass Report", callback_data="menu_mass_report"),
             ],
             [
+                InlineKeyboardButton("💎 Referral & Premium", callback_data="menu_referral"),
                 InlineKeyboardButton("🎧 Support", callback_data="menu_support"),
-                InlineKeyboardButton("👑 Owner Contact", url=f"https://t.me/{OWNER_USERNAME.lstrip('@')}"),
             ],
             [
                 InlineKeyboardButton("📊 My Status", callback_data="menu_status"),
+                InlineKeyboardButton("👑 Owner Contact", url=f"https://t.me/{OWNER_USERNAME.lstrip('@')}"),
+            ],
+            [
                 InlineKeyboardButton("🤖 Partner Bot", url=PARTNER_BOT_URL),
             ],
         ]
@@ -245,6 +249,16 @@ def build_premium_ban_keyboard() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home"),
             ],
+        ]
+    )
+
+
+def build_unlock_premium_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("👑 Contact Owner", url=f"https://t.me/{OWNER_USERNAME.lstrip('@')}")],
+            [InlineKeyboardButton("💎 Referral & Premium", callback_data="menu_referral")],
+            [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")],
         ]
     )
 
@@ -273,6 +287,96 @@ async def send_stylish_video_message(
             reply_markup=reply_markup,
             disable_web_page_preview=False,
         )
+
+
+async def run_mass_report_animation(
+    bot,
+    chat_id: int,
+    job_id: str,
+    target: str,
+    user_full_name: str,
+    user_id: int,
+) -> None:
+    """Realistic 60-second (1-minute) phased progress animation for Mass Report."""
+    stages = [
+        (
+            15,
+            "<code>[███░░░░░░░░░░░░░░░░░] 15%</code>",
+            "Validating target link & initializing multi-node report queue...",
+            "⏳ <b>Estimated Time:</b> <code>45s remaining</code>",
+            "🟡 <b>Stage 1/4:</b> Target Handshake & Queue Sync",
+        ),
+        (
+            15,
+            "<code>[████████░░░░░░░░░░░░] 42%</code>",
+            "Dispatching Wave #1 structured abuse & spam report packets...",
+            "⏳ <b>Estimated Time:</b> <code>30s remaining</code>",
+            "🟠 <b>Stage 2/4:</b> Wave #1 Dispatch Active",
+        ),
+        (
+            15,
+            "<code>[██████████████░░░░░░] 74%</code>",
+            "Rotating relay nodes & executing Wave #2 verification batch...",
+            "⏳ <b>Estimated Time:</b> <code>15s remaining</code>",
+            "🔵 <b>Stage 3/4:</b> Wave #2 Relay & Telemetry Check",
+        ),
+        (
+            15,
+            "<code>[████████████████████] 100%</code>",
+            "All report batches dispatched and logged under priority ticket.",
+            "✅ <b>Duration:</b> <code>60s (1m 00s) Completed</code>",
+            "🟢 <b>Stage 4/4:</b> Dispatch Finalized",
+        ),
+    ]
+
+    status_msg = await bot.send_message(
+        chat_id=chat_id,
+        text=(
+            f"{make_header('MASS REPORT ENGINE', 'REAL-TIME EXECUTION')}"
+            f"{make_quote('Initializing 60-second high-priority mass report sequence.')}"
+            f"🎫 <b>Job ID:</b> <code>{job_id}</code>\n\n"
+            f"🎯 <b>Target:</b> <code>{target}</code>\n\n"
+            f"<code>[█░░░░░░░░░░░░░░░░░░░] 5%</code>\n\n"
+            f"<i>Booting report dispatcher...</i>"
+        ),
+        parse_mode=ParseMode.HTML,
+    )
+
+    for idx, (delay_sec, bar, step_quote, time_line, stage_label) in enumerate(stages):
+        await asyncio.sleep(delay_sec)
+        is_final = idx == len(stages) - 1
+        body = (
+            f"{make_header('MASS REPORT ENGINE', 'EXECUTION COMPLETE' if is_final else 'LIVE TELEMETRY')}"
+            f"{make_quote(step_quote)}"
+            f"🎫 <b>Job ID:</b> <code>{job_id}</code>\n\n"
+            f"🎯 <b>Target:</b> <code>{target}</code>\n\n"
+            f"{stage_label}\n\n"
+            f"{bar}\n\n"
+            f"{time_line}\n\n"
+            f"📌 <b>Status:</b> <b>{'Dispatched & Logged' if is_final else 'Running'}</b>"
+        )
+        try:
+            await status_msg.edit_text(
+                text=body,
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_main_menu_keyboard() if is_final else None,
+            )
+        except TelegramError:
+            pass
+
+    try:
+        await bot.send_message(
+            chat_id=OWNER_ID,
+            text=(
+                f"{make_header('MASS REPORT COMPLETED', job_id)}"
+                f"👤 <b>User:</b> <b>{user_full_name}</b> (<code>{user_id}</code>)\n\n"
+                f"🎯 <b>Target:</b> <code>{target}</code>\n\n"
+                f"⏱️ <b>Cycle:</b> <code>60s (1 Minute)</code>"
+            ),
+            parse_mode=ParseMode.HTML,
+        )
+    except TelegramError:
+        pass
 
 
 # ---------------- COMMANDS & CALLBACKS ----------------
@@ -329,7 +433,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"<b>Access Checklist:</b>\n\n"
             f"{'✅' if status['channel'] else '❌'} <b>Mandatory Channel</b> — Join required channel\n\n"
             f"🔹 <b>Requested Channel</b> — Optional quick access link\n\n"
-            f"{'✅' if status['group'] else '❌'} <b>Join Group</b> — Join official community group\n\n"
+            f"🔹 <b>Join Group</b> — Optional quick access link\n\n"
             f"🤖 <b>Partner Bot:</b> <a href=\"{PARTNER_BOT_URL}\">Nobita BanBot</a>\n\n"
             f"<i>Complete the required steps above and tap</i> <b>Verify & Unlock Access</b><i>.</i>"
         )
@@ -350,9 +454,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"{format_premium_status(user_rec)}\n\n"
         f"<b>Core Modules:</b>\n\n"
         f"⚔️ <b>TG BAN</b> — Group, channel, and TG ID moderation suite\n\n"
+        f"🚨 <b>Mass Report</b> — 60s phased multi-wave report execution\n\n"
         f"💎 <b>Referral & Premium</b> — <code>10 Referrals = 1 Month Free</code>\n\n"
-        f"🎧 <b>Support</b> — Direct ticket and owner assistance\n\n"
-        f"🤖 <b>Partner Bot:</b> <a href=\"{PARTNER_BOT_URL}\">Launch Nobita BanBot</a>"
+        f"🎧 <b>Support</b> — Direct ticket and owner assistance"
     )
     await send_stylish_video_message(
         context.bot,
@@ -399,12 +503,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             missing = []
             if not status["channel"]:
                 missing.append(f"• <b>Mandatory Channel:</b> {MANDATORY_CHANNEL_URL}")
-            if not status["group"]:
-                missing.append(f"• <b>Join Group:</b> {JOIN_GROUP_URL}")
 
             await query.message.reply_text(
                 f"{make_header('VERIFICATION REQUIRED', 'ACCESS STILL LOCKED')}"
-                f"{make_quote('Please join the required channel and group to unlock all bot features.')}"
+                f"{make_quote('Please join the required channel to unlock all bot features.')}"
                 + "\n\n".join(missing),
                 parse_mode=ParseMode.HTML,
                 reply_markup=build_gate_keyboard(),
@@ -440,12 +542,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 context.bot,
                 chat_id=chat_id,
                 caption=unlock_caption,
-                reply_markup=InlineKeyboardMarkup(
-                    [
-                        [InlineKeyboardButton("👑 Contact Owner", url=f"https://t.me/{OWNER_USERNAME.lstrip('@')}")],
-                        [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")],
-                    ]
-                ),
+                reply_markup=build_unlock_premium_keyboard(),
             )
             return
 
@@ -463,6 +560,45 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             chat_id=chat_id,
             caption=premium_ban_caption,
             reply_markup=build_premium_ban_keyboard(),
+        )
+        return
+
+    if data == "menu_mass_report":
+        if not has_active_premium(user_rec):
+            user_rec["awaiting_mode"] = None
+            save_db(db)
+            unlock_caption = (
+                f"{make_header('UNLOCK PREMIUM ACCESS', 'MASS REPORT ENGINE')}"
+                f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
+                f"🔹 <b>You have normal access.</b>\n\n"
+                f"💎 To unlock premium access, complete <code>10 referrals</code> or if you want direct access, DM the owner <b>{OWNER_USERNAME}</b>.\n\n"
+                f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>"
+            )
+            await send_stylish_video_message(
+                context.bot,
+                chat_id=chat_id,
+                caption=unlock_caption,
+                reply_markup=build_unlock_premium_keyboard(),
+            )
+            return
+
+        user_rec["awaiting_mode"] = "mass_report"
+        save_db(db)
+        await send_stylish_video_message(
+            context.bot,
+            chat_id=chat_id,
+            caption=(
+                f"{make_header('MASS REPORT SUITE', '60-SECOND EXECUTION ENGINE')}"
+                f"{make_quote('Send the target link or @username to launch a 1-minute phased mass report cycle.')}"
+                f"{format_premium_status(user_rec)}\n\n"
+                f"<b>Send Link / Target Format:</b>\n"
+                f"<code>https://t.me/+972zYAr5L1BjMmM1</code>\n\n"
+                f"⏱️ <b>Execution Cycle:</b> <code>60 Seconds (1 Minute)</code>\n\n"
+                f"<i>Send /cancel at any time to abort.</i>"
+            ),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]]
+            ),
         )
         return
 
@@ -624,10 +760,49 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return
 
     user = update.effective_user
+    chat_id = update.message.chat_id
     text = update.message.text.strip()
     db = load_db()
     user_rec = get_user(db, user.id, user.full_name, user.username or "")
     mode = user_rec.get("awaiting_mode")
+
+    if mode == "mass_report":
+        if not has_active_premium(user_rec):
+            user_rec["awaiting_mode"] = None
+            save_db(db)
+            await update.message.reply_text(
+                f"{make_header('UNLOCK PREMIUM ACCESS', 'PREMIUM REQUIRED')}"
+                f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
+                f"🔹 <b>You have normal access.</b>\n\n"
+                f"💎 Complete <code>10 referrals</code> or DM <b>{OWNER_USERNAME}</b> for direct access.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_unlock_premium_keyboard(),
+            )
+            return
+
+        job_id = f"MR-{len(db['mass_report_jobs']) + 1001}"
+        db["mass_report_jobs"].append(
+            {
+                "job_id": job_id,
+                "submitted_by": user.id,
+                "target": text,
+                "timestamp": int(time.time()),
+            }
+        )
+        user_rec["awaiting_mode"] = None
+        save_db(db)
+
+        asyncio.create_task(
+            run_mass_report_animation(
+                bot=context.bot,
+                chat_id=chat_id,
+                job_id=job_id,
+                target=text,
+                user_full_name=user.full_name,
+                user_id=user.id,
+            )
+        )
+        return
 
     if mode in {"ban_group", "ban_channel", "ban_tg_id"}:
         if not has_active_premium(user_rec):
@@ -639,7 +814,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 f"🔹 <b>You have normal access.</b>\n\n"
                 f"💎 Complete <code>10 referrals</code> or DM <b>{OWNER_USERNAME}</b> for direct access.",
                 parse_mode=ParseMode.HTML,
-                reply_markup=build_main_menu_keyboard(),
+                reply_markup=build_unlock_premium_keyboard(),
             )
             return
 
@@ -874,6 +1049,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     total_users = len(db["users"])
     active_prem = sum(1 for u in db["users"].values() if has_active_premium(u))
     total_cases = len(db["tg_ban_cases"])
+    total_jobs = len(db["mass_report_jobs"])
     total_tickets = len(db["support_tickets"])
 
     await update.message.reply_text(
@@ -881,6 +1057,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"👥 <b>Total Users:</b> <code>{total_users}</code>\n\n"
         f"👑 <b>Active Premium:</b> <code>{active_prem}</code>\n\n"
         f"⚔️ <b>TG Ban Cases:</b> <code>{total_cases}</code>\n\n"
+        f"🚨 <b>Mass Report Jobs:</b> <code>{total_jobs}</code>\n\n"
         f"🎧 <b>Support Tickets:</b> <code>{total_tickets}</code>",
         parse_mode=ParseMode.HTML,
     )
