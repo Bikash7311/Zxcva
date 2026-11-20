@@ -54,6 +54,11 @@ REQUESTED_CHANNEL_URL = "https://t.me/+972zYAr5L1BjMmM1"
 
 JOIN_GROUP_URL = "https://t.me/chatgctest"
 JOIN_GROUP_REF = os.getenv("JOIN_GROUP_REF", "@chatgctest")
+SKIP_GROUP_CHECK = os.getenv("SKIP_GROUP_CHECK", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 PARTNER_BOT_URL = "https://t.me/Nobita_banbot"
 
@@ -181,7 +186,7 @@ async def is_member_of(bot, chat_ref: str, user_id: int) -> bool:
 
 async def check_all_requirements(bot, user_id: int) -> dict[str, bool]:
     channel_ok = await is_member_of(bot, MANDATORY_CHANNEL_REF, user_id)
-    group_ok = await is_member_of(bot, JOIN_GROUP_REF, user_id)
+    group_ok = True if SKIP_GROUP_CHECK else await is_member_of(bot, JOIN_GROUP_REF, user_id)
 
     return {
         "channel": channel_ok,
@@ -222,6 +227,23 @@ def build_main_menu_keyboard() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton("📊 My Status", callback_data="menu_status"),
                 InlineKeyboardButton("🤖 Partner Bot", url=PARTNER_BOT_URL),
+            ],
+        ]
+    )
+
+
+def build_premium_ban_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("👥 Group Ban", callback_data="ban_type_group"),
+                InlineKeyboardButton("📢 Channel Ban", callback_data="ban_type_channel"),
+            ],
+            [
+                InlineKeyboardButton("🎯 TG ID Ban", callback_data="ban_type_id"),
+            ],
+            [
+                InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home"),
             ],
         ]
     )
@@ -327,10 +349,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>\n\n"
         f"{format_premium_status(user_rec)}\n\n"
         f"<b>Core Modules:</b>\n\n"
-        f"⚔️ <b>TG BAN</b> — Submit and track moderation action tickets\n\n"
+        f"⚔️ <b>TG BAN</b> — Group, channel, and TG ID moderation suite\n\n"
         f"💎 <b>Referral & Premium</b> — <code>10 Referrals = 1 Month Free</code>\n\n"
         f"🎧 <b>Support</b> — Direct ticket and owner assistance\n\n"
-        f"🤖 <b>Partner Bot</b> — <a href=\"{PARTNER_BOT_URL}\">Launch Nobita BanBot</a>"
+        f"🤖 <b>Partner Bot:</b> <a href=\"{PARTNER_BOT_URL}\">Launch Nobita BanBot</a>"
     )
     await send_stylish_video_message(
         context.bot,
@@ -403,21 +425,106 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     if data == "menu_tg_ban":
-        user_rec["awaiting_mode"] = "tg_ban"
+        user_rec["awaiting_mode"] = None
+        save_db(db)
+
+        if not has_active_premium(user_rec):
+            unlock_caption = (
+                f"{make_header('UNLOCK PREMIUM ACCESS', 'EXCLUSIVE MODERATION SUITE')}"
+                f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
+                f"🔹 <b>You have normal access.</b>\n\n"
+                f"💎 To unlock premium access, complete <code>10 referrals</code> or if you want direct access, DM the owner <b>{OWNER_USERNAME}</b>.\n\n"
+                f"👑 <b>Owner:</b> <b>{OWNER_USERNAME}</b>  |  <code>{OWNER_ID}</code>"
+            )
+            await send_stylish_video_message(
+                context.bot,
+                chat_id=chat_id,
+                caption=unlock_caption,
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [InlineKeyboardButton("👑 Contact Owner", url=f"https://t.me/{OWNER_USERNAME.lstrip('@')}")],
+                        [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")],
+                    ]
+                ),
+            )
+            return
+
+        premium_ban_caption = (
+            f"{make_header('TG BAN CONTROL SUITE', 'SELECT TARGET OPERATION')}"
+            f"{make_quote('Choose your target mode below to submit a moderation action.')}"
+            f"{format_premium_status(user_rec)}\n\n"
+            f"<b>Available Modes:</b>\n\n"
+            f"👥 <b>Group Ban</b> — Target a Telegram group link\n\n"
+            f"📢 <b>Channel Ban</b> — Target a Telegram channel link\n\n"
+            f"🎯 <b>TG ID Ban</b> — Target a user by @username"
+        )
+        await send_stylish_video_message(
+            context.bot,
+            chat_id=chat_id,
+            caption=premium_ban_caption,
+            reply_markup=build_premium_ban_keyboard(),
+        )
+        return
+
+    if data == "ban_type_group":
+        user_rec["awaiting_mode"] = "ban_group"
         save_db(db)
         await send_stylish_video_message(
             context.bot,
             chat_id=chat_id,
             caption=(
-                f"{make_header('TG BAN MODULE', 'MODERATION & REPORT CASE')}"
-                f"{make_quote('Submit clear target details and a concise reason for moderation review.')}"
-                f"{format_premium_status(user_rec)}\n\n"
-                f"<b>Required Format:</b>\n"
-                f"<code>@target_username | Reason for action</code>\n\n"
+                f"{make_header('GROUP BAN MODE', 'TARGET GROUP SUBMISSION')}"
+                f"{make_quote('Send the target group link in the required format below.')}"
+                f"<b>Send Link Format:</b>\n"
+                f"<code>https://t.me/+972zYAr5L1BjMmM1</code>\n\n"
                 f"<i>Send /cancel at any time to abort.</i>"
             ),
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]]
+                [
+                    [InlineKeyboardButton("⬅️ Back to Ban Modes", callback_data="menu_tg_ban")],
+                ]
+            ),
+        )
+        return
+
+    if data == "ban_type_channel":
+        user_rec["awaiting_mode"] = "ban_channel"
+        save_db(db)
+        await send_stylish_video_message(
+            context.bot,
+            chat_id=chat_id,
+            caption=(
+                f"{make_header('CHANNEL BAN MODE', 'TARGET CHANNEL SUBMISSION')}"
+                f"{make_quote('Send the target channel link in the required format below.')}"
+                f"<b>Send Link Format:</b>\n"
+                f"<code>https://t.me/+972zYAr5L1BjMmM1</code>\n\n"
+                f"<i>Send /cancel at any time to abort.</i>"
+            ),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton("⬅️ Back to Ban Modes", callback_data="menu_tg_ban")],
+                ]
+            ),
+        )
+        return
+
+    if data == "ban_type_id":
+        user_rec["awaiting_mode"] = "ban_tg_id"
+        save_db(db)
+        await send_stylish_video_message(
+            context.bot,
+            chat_id=chat_id,
+            caption=(
+                f"{make_header('TG ID BAN MODE', 'TARGET ACCOUNT SUBMISSION')}"
+                f"{make_quote('Send the target username in the required format below.')}"
+                f"<b>Send Format:</b>\n"
+                f"<code>@username</code>\n\n"
+                f"<i>Send /cancel at any time to abort.</i>"
+            ),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton("⬅️ Back to Ban Modes", callback_data="menu_tg_ban")],
+                ]
             ),
         )
         return
@@ -522,11 +629,31 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     user_rec = get_user(db, user.id, user.full_name, user.username or "")
     mode = user_rec.get("awaiting_mode")
 
-    if mode == "tg_ban":
+    if mode in {"ban_group", "ban_channel", "ban_tg_id"}:
+        if not has_active_premium(user_rec):
+            user_rec["awaiting_mode"] = None
+            save_db(db)
+            await update.message.reply_text(
+                f"{make_header('UNLOCK PREMIUM ACCESS', 'PREMIUM REQUIRED')}"
+                f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
+                f"🔹 <b>You have normal access.</b>\n\n"
+                f"💎 Complete <code>10 referrals</code> or DM <b>{OWNER_USERNAME}</b> for direct access.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_main_menu_keyboard(),
+            )
+            return
+
+        mode_labels = {
+            "ban_group": "GROUP BAN",
+            "ban_channel": "CHANNEL BAN",
+            "ban_tg_id": "TG ID BAN",
+        }
+        ban_type_title = mode_labels[mode]
         case_id = f"CASE-{len(db['tg_ban_cases']) + 1001}"
         db["tg_ban_cases"].append(
             {
                 "case_id": case_id,
+                "ban_type": ban_type_title,
                 "submitted_by": user.id,
                 "payload": text,
                 "timestamp": int(time.time()),
@@ -536,10 +663,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         save_db(db)
 
         await update.message.reply_text(
-            f"{make_header('TG BAN TICKET LOGGED', 'MODERATION QUEUE')}"
-            f"{make_quote('Your moderation ticket has been recorded and forwarded to the owner.')}"
+            f"{make_header(f'{ban_type_title} LOGGED', 'MODERATION QUEUE')}"
+            f"{make_quote('Your premium moderation target has been recorded and sent to the owner.')}"
             f"🎫 <b>Case ID:</b> <code>{case_id}</code>\n\n"
-            f"📝 <b>Details:</b> <code>{text}</code>\n\n"
+            f"⚔️ <b>Mode:</b> <b>{ban_type_title}</b>\n\n"
+            f"🎯 <b>Target:</b> <code>{text}</code>\n\n"
             f"📌 <b>Status:</b> <b>Queued</b>",
             parse_mode=ParseMode.HTML,
             reply_markup=build_main_menu_keyboard(),
@@ -548,9 +676,9 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await context.bot.send_message(
                 chat_id=OWNER_ID,
                 text=(
-                    f"{make_header('NEW TG BAN TICKET', case_id)}"
+                    f"{make_header(f'PREMIUM {ban_type_title}', case_id)}"
                     f"👤 <b>Submitted By:</b> <b>{user.full_name}</b> (<code>{user.id}</code>)\n\n"
-                    f"📝 <b>Details:</b> <code>{text}</code>"
+                    f"🎯 <b>Target:</b> <code>{text}</code>"
                 ),
                 parse_mode=ParseMode.HTML,
             )
