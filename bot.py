@@ -62,7 +62,6 @@ SKIP_GROUP_CHECK = os.getenv("SKIP_GROUP_CHECK", "true").strip().lower() in {
 
 PARTNER_BOT_URL = "https://t.me/Nobita_banbot"
 
-REFERRALS_REQUIRED_FOR_PREMIUM = 10
 PREMIUM_DURATION_SECONDS = 30 * 24 * 60 * 60  # 30 days
 DATA_FILE = Path(os.getenv("DATA_FILE", "bot_data.json"))
 DB_LOCK = threading.Lock()
@@ -175,7 +174,7 @@ def format_premium_status(user_rec: dict[str, Any]) -> str:
     if has_active_premium(user_rec):
         remaining_days = max(1, (int(user_rec["premium_until"]) - int(time.time())) // 86400)
         return f"👑 <b>{to_revue_italic('Active Premium')}</b>  •  <code>{remaining_days} Days Left</code>"
-    return f"🔹 <b>{to_revue_italic('Standard Access')}</b>  •  <code>10 Refs = 1M Free</code>"
+    return f"🔹 <b>{to_revue_italic('Standard Access')}</b>  •  <code>Owner Approval Only</code>"
 
 
 # ---------------- KEEP-ALIVE WEB SERVER FOR RENDER ----------------
@@ -280,7 +279,6 @@ def build_unlock_premium_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("👑 Contact Owner", url=f"https://t.me/{OWNER_USERNAME.lstrip('@')}")],
-            [InlineKeyboardButton("💎 Referral & Premium", callback_data="menu_referral")],
             [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")],
         ]
     )
@@ -510,7 +508,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_rec = get_user(db, user.id, user.full_name, user.username or "")
     user_rec["awaiting_mode"] = None
 
-    # Referral tracking: /start ref_<user_id>
+    # Referral count tracking only (Premium is granted strictly by Owner)
     if context.args and user_rec.get("referred_by") is None:
         arg = context.args[0].strip()
         if arg.startswith("ref_"):
@@ -521,17 +519,12 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     ref_user = db["users"][referrer_id_str]
                     ref_user["referrals"] = int(ref_user.get("referrals", 0)) + 1
 
-                    if ref_user["referrals"] % REFERRALS_REQUIRED_FOR_PREMIUM == 0:
-                        now = int(time.time())
-                        current_exp = max(now, int(ref_user.get("premium_until", 0)))
-                        ref_user["premium_until"] = current_exp + PREMIUM_DURATION_SECONDS
-
                     try:
                         await context.bot.send_message(
                             chat_id=int(referrer_id_str),
                             text=(
-                                f"{make_header('NEW REFERRAL REGISTERED', 'REWARD MILESTONE TRACKER')}"
-                                f"{make_quote('A new member has joined using your personal referral link.')}"
+                                f"{make_header('NEW REFERRAL REGISTERED', 'REFERRAL COUNTER')}"
+                                f"{make_quote('A new member has joined using your referral link.')}"
                                 f"{format_user_identity(user.id, user.full_name)}\n\n"
                                 f"📈 <b>Total Referrals:</b> <code>{ref_user['referrals']}</code>\n\n"
                                 f"💎 <b>Membership:</b> {format_premium_status(ref_user)}"
@@ -547,7 +540,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not status["all_ok"]:
         gate_caption = (
             f"{make_header(BOT_NAME, 'VERIFICATION GATEWAY')}"
-            f"{make_quote('Unlock precision moderation, mass reporting, and referral rewards.')}"
+            f"{make_quote('Unlock precision moderation, mass reporting, and owner-approved access.')}"
             f"{format_user_identity(user.id, user.full_name)}\n\n"
             f"🤖 <b>{to_revue_italic('Bot Handle')}:</b> {bold_mono(BOT_USERNAME)}  •  👑 <b>{OWNER_USERNAME}</b>\n\n"
             f"<b><i>{to_revue_italic('Access Requirements')}</i></b>\n\n"
@@ -567,14 +560,14 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     welcome_caption = (
         f"{make_header(BOT_NAME, 'ELITE CONTROL SUITE')}"
-        f"{make_quote('Crafted for refined control, 10-referral free premium, and priority support.')}"
+        f"{make_quote('Crafted for refined control, owner-granted premium access, and priority support.')}"
         f"{format_user_identity(user.id, user.full_name)}\n\n"
         f"🤖 <b>{to_revue_italic('Bot')}:</b> {bold_mono(BOT_USERNAME)}  •  👑 <b>{OWNER_USERNAME}</b>\n\n"
         f"{format_premium_status(user_rec)}\n\n"
         f"<b><i>{to_revue_italic('Suite Modules')}</i></b>\n\n"
         f"⚔️ <b>{to_revue_italic('TG Ban')}</b> — Group, channel, and TG ID controls\n\n"
         f"🚨 <b>{to_revue_italic('Mass Report')}</b> — 60s multi-wave report sequence\n\n"
-        f"💎 <b>{to_revue_italic('Referral & Premium')}</b> — <code>10 Referrals = 1M Free</code>\n\n"
+        f"💎 <b>{to_revue_italic('Referral & Premium')}</b> — <code>Owner Access Only</code>\n\n"
         f"🎧 <b>{to_revue_italic('Support')}</b> — Direct assistance & tickets"
     )
     await send_stylish_video_message(
@@ -651,11 +644,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         if not has_active_premium(user_rec):
             unlock_caption = (
-                f"{make_header('UNLOCK PREMIUM ACCESS', 'EXCLUSIVE MODERATION SUITE')}"
+                f"{make_header('UNLOCK PREMIUM ACCESS', 'OWNER APPROVAL REQUIRED')}"
                 f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
                 f"{format_user_identity(user.id, user.full_name)}\n\n"
                 f"🔹 <b>{to_revue_italic('You have normal access.')}</b>\n\n"
-                f"💎 To unlock premium access, complete <code>10 referrals</code> or if you want direct access, DM the owner <b>{OWNER_USERNAME}</b>.\n\n"
+                f"💎 Premium access is granted strictly by the owner. DM <b>{OWNER_USERNAME}</b> to request access.\n\n"
                 f"👑 <b>{to_revue_italic('Owner')}:</b> <b>{OWNER_USERNAME}</b>"
             )
             await send_stylish_video_message(
@@ -693,7 +686,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
                 f"{format_user_identity(user.id, user.full_name)}\n\n"
                 f"🔹 <b>{to_revue_italic('You have normal access.')}</b>\n\n"
-                f"💎 To unlock premium access, complete <code>10 referrals</code> or if you want direct access, DM the owner <b>{OWNER_USERNAME}</b>.\n\n"
+                f"💎 Premium access is granted strictly by the owner. DM <b>{OWNER_USERNAME}</b> to request access.\n\n"
                 f"👑 <b>{to_revue_italic('Owner')}:</b> <b>{OWNER_USERNAME}</b>"
             )
             await send_stylish_video_message(
@@ -795,9 +788,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         user_rec["awaiting_mode"] = None
         save_db(db)
         refs = int(user_rec.get("referrals", 0))
-        rem = REFERRALS_REQUIRED_FOR_PREMIUM - (refs % REFERRALS_REQUIRED_FOR_PREMIUM)
-        if refs > 0 and refs % REFERRALS_REQUIRED_FOR_PREMIUM == 0:
-            rem = REFERRALS_REQUIRED_FOR_PREMIUM
         bot_clean = BOT_USERNAME.lstrip("@")
         ref_link = f"https://t.me/{bot_clean}?start=ref_{user.id}"
 
@@ -805,12 +795,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             context.bot,
             chat_id=chat_id,
             caption=(
-                f"{make_header('REFERRAL & PREMIUM VAULT', '10 REFERRALS = 1 MONTH FREE')}"
-                f"{make_quote('Complete 10 referrals for 1 month of free premium access, or contact the owner directly.')}"
+                f"{make_header('REFERRAL & PREMIUM VAULT', 'OWNER APPROVAL SYSTEM')}"
+                f"{make_quote('Premium access is granted exclusively by the owner. Contact the owner directly.')}"
                 f"{format_user_identity(user.id, user.full_name)}\n\n"
                 f"🔗 <b>{to_revue_italic('Personal Invite Link')}:</b>\n<code>{ref_link}</code>\n\n"
                 f"📈 <b>{to_revue_italic('Total Referrals')}:</b> <code>{refs}</code>\n\n"
-                f"🎯 <b>{to_revue_italic('Referrals Needed')}:</b> <code>{rem}</code>\n\n"
                 f"💎 <b>{to_revue_italic('Status')}:</b> {format_premium_status(user_rec)}\n\n"
                 f"👑 <b>{to_revue_italic('Owner')}:</b> <b>{OWNER_USERNAME}</b>"
             ),
@@ -873,7 +862,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             chat_id=chat_id,
             caption=(
                 f"{make_header(BOT_NAME, 'ELITE CONTROL SUITE')}"
-                f"{make_quote('Crafted for refined control, 10-referral free premium, and priority support.')}"
+                f"{make_quote('Crafted for refined control, owner-granted premium access, and priority support.')}"
                 f"{format_user_identity(user.id, user.full_name)}\n\n"
                 f"🤖 <b>{to_revue_italic('Bot')}:</b> {bold_mono(BOT_USERNAME)}  •  👑 <b>{OWNER_USERNAME}</b>\n\n"
                 f"{format_premium_status(user_rec)}"
@@ -902,7 +891,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
                 f"{format_user_identity(user.id, user.full_name)}\n\n"
                 f"🔹 <b>{to_revue_italic('You have normal access.')}</b>\n\n"
-                f"💎 Complete <code>10 referrals</code> or DM <b>{OWNER_USERNAME}</b> for direct access.",
+                f"💎 Premium access is granted strictly by the owner. DM <b>{OWNER_USERNAME}</b> to request access.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=build_unlock_premium_keyboard(),
             )
@@ -941,7 +930,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 f"{make_quote(f'Dm : {OWNER_USERNAME}')}"
                 f"{format_user_identity(user.id, user.full_name)}\n\n"
                 f"🔹 <b>{to_revue_italic('You have normal access.')}</b>\n\n"
-                f"💎 Complete <code>10 referrals</code> or DM <b>{OWNER_USERNAME}</b> for direct access.",
+                f"💎 Premium access is granted strictly by the owner. DM <b>{OWNER_USERNAME}</b> to request access.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=build_unlock_premium_keyboard(),
             )
